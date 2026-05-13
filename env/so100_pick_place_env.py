@@ -123,17 +123,16 @@ class SO100PickPlaceEnv(gym.Env):
     def _ik_solve(
         self,
         target_pos: np.ndarray,
-        max_iter: int = 200,
-        tol: float = 0.005,
-        damping: float = 0.05,
-        step_size: float = 0.8,
-        nullspace_weight: float = 0.01,
+        max_iter: int = 10,
+        tol: float = 0.01,
+        damping: float = 0.15,
+        step_size: float = 0.5,
+        nullspace_weight: float = 0.05,
     ) -> np.ndarray:
         """Damped least-squares IK that returns 6-D joint targets.
 
-        Updates joints 0-4 to reach `target_pos`; joint 5 (Jaw) is left at current value.
-        Leaves `self.data.qpos` at the solved configuration and calls mj_forward so that
-        subsequent sim steps start from the IK solution.
+        Pure function: iterates using qpos as scratch space, then restores the original
+        env state before returning. Does NOT mutate self.data.qpos.
         """
         # Clamp the target into the reachable box
         target = np.clip(target_pos, EE_BOX_LOW, EE_BOX_HIGH).astype(np.float64)
@@ -179,9 +178,8 @@ class SO100PickPlaceEnv(gym.Env):
             high = self.model.jnt_range[[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in ARM_JOINT_NAMES], 1]
             q_arm = np.clip(q_arm, low, high)
 
-        # Apply the final IK solution to qpos so that subsequent sim steps
-        # (as in the test harness) start from the solved configuration.
-        self.data.qpos[self.arm_qpos_addrs] = q_arm
+        # Restore original qpos
+        self.data.qpos[:] = original_qpos
         mujoco.mj_forward(self.model, self.data)
 
         result = np.empty(6, dtype=np.float32)

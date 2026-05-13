@@ -66,22 +66,25 @@ def test_reset_returns_valid_obs():
 
 
 def test_ik_reaches_waypoint():
-    """IK should drive the TCP within 1 cm of a reachable target after one solve."""
+    """IK should produce joint angles whose forward kinematics land within 1 cm of target."""
     from env import SO100PickPlaceEnv
     env = SO100PickPlaceEnv()
     try:
         env.reset(seed=0)
-        # Target a reachable point ~10 cm forward of the gripper home pose
         target = env._tcp_pos() + np.array([0.0, -0.05, -0.05], dtype=np.float32)
+        # Snapshot qpos before, to verify IK does not mutate env state
+        qpos_before = env.data.qpos.copy()
         new_qpos = env._ik_solve(target)
-        # Apply and step the sim to settle
-        env.data.ctrl[env.act_ids[:5]] = new_qpos[:5]
-        for _ in range(20):
-            mujoco.mj_step(env.model, env.data)
+        qpos_after = env.data.qpos.copy()
+        assert np.allclose(qpos_before, qpos_after), "_ik_solve mutated env state (it should not)"
+
+        # Verify the IK output is correct by writing it to qpos and forward-kinematicising
+        env.data.qpos[env.arm_qpos_addrs] = new_qpos[:5]
+        mujoco.mj_forward(env.model, env.data)
         final_ee = env._tcp_pos()
         err = np.linalg.norm(final_ee - target)
         assert err < 0.02, f"IK error too large: {err:.4f} m, target={target}, final={final_ee}"
-        print(f"  ik error = {err:.4f} m")
+        print(f"  ik error = {err:.4f} m, env state preserved")
     finally:
         env.close()
 
