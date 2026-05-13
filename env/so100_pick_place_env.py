@@ -254,13 +254,33 @@ class SO100PickPlaceEnv(gym.Env):
         return self._observation(), {}
 
     def step(self, action):
-        # Placeholder for now: zero ctrl so the test_reset_returns_valid_obs path is taken.
-        # The real step logic is added in subsequent tasks.
-        self._step_count += 1
+        action = np.clip(np.asarray(action, dtype=np.float32), -1.0, 1.0)
+
+        # Compute commanded EE target
+        ee_delta = action[:3] * EE_DELTA_MAX
+        target_ee = self._tcp_pos() + ee_delta
+
+        # Solve IK for joints 0-4
+        new_qpos = self._ik_solve(target_ee)
+
+        # Gripper delta (joint 5)
+        jaw_low, jaw_high = self.ctrlranges[5]
+        current_jaw = self.data.qpos[self.qpos_addrs[5]]
+        new_jaw = float(np.clip(current_jaw + action[3] * JAW_DELTA_MAX, jaw_low, jaw_high))
+        new_qpos[5] = new_jaw
+
+        # Apply control and step
+        self.data.ctrl[self.act_ids] = new_qpos
         for _ in range(self.substeps):
             mujoco.mj_step(self.model, self.data)
+
+        self._step_count += 1
         obs = self._observation()
-        return obs, 0.0, False, self._step_count >= self.max_episode_steps, {}
+
+        truncated = self._step_count >= self.max_episode_steps
+        info = {}
+        self._prev_action = action.copy()
+        return obs, 0.0, False, truncated, info
 
     def render(self):
         if self._renderer is None:

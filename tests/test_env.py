@@ -89,6 +89,24 @@ def test_ik_reaches_waypoint():
         env.close()
 
 
+def test_positive_z_action_raises_ee():
+    """Commanding action [0, 0, +1, 0] for 30 steps should raise the TCP at least 5 cm."""
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        env.reset(seed=0)
+        z_start = env._tcp_pos()[2]
+        action = np.array([0.0, 0.0, 1.0, 0.0], dtype=np.float32)
+        for _ in range(30):
+            env.step(action)
+        z_end = env._tcp_pos()[2]
+        rise = z_end - z_start
+        assert rise > 0.05, f"TCP rose only {rise:.4f} m; expected > 0.05 m"
+        print(f"  z_start={z_start:.4f}, z_end={z_end:.4f}, rise={rise:.4f} m")
+    finally:
+        env.close()
+
+
 TESTS = [
     test_tcp_site_exists,
     test_env_imports_and_constructs,
@@ -96,6 +114,7 @@ TESTS = [
     test_observation_space_is_22d,
     test_reset_returns_valid_obs,
     test_ik_reaches_waypoint,
+    test_positive_z_action_raises_ee,
 ]
 
 
