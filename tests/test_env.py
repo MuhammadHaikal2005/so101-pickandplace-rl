@@ -195,6 +195,24 @@ def test_first_lift_bonus_fires_once():
         env.close()
 
 
+def test_drop_penalty_fires_on_grasp_loss_while_lifted():
+    """Losing grasp while cube_z > LIFT_THRESH_ABS should fire -2.0 once."""
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        env.reset(seed=0)
+        # Simulate the "was lifted" state by forcing internal flag and current state
+        env._was_lifted = True   # manually mark; in real episodes this is set during step
+        # Force in_contact = False (cube far from gripper) and cube above lift threshold
+        env.data.qpos[env.cube_qpos_addr : env.cube_qpos_addr + 3] = np.array([0.30, 0.30, 0.10])
+        mujoco.mj_forward(env.model, env.data)
+        _, _, _, _, info = env.step(np.zeros(4, dtype=np.float32))
+        assert info.get("penalty_drop", 0.0) == -2.0, f"expected -2.0, got {info.get('penalty_drop')}"
+        print("  drop penalty fires correctly")
+    finally:
+        env.close()
+
+
 TESTS = [
     test_tcp_site_exists,
     test_env_imports_and_constructs,
@@ -207,6 +225,7 @@ TESTS = [
     test_grasp_reward_fires_when_both_jaws_contact,
     test_lift_reward_requires_grasp,
     test_first_lift_bonus_fires_once,
+    test_drop_penalty_fires_on_grasp_loss_while_lifted,
 ]
 
 

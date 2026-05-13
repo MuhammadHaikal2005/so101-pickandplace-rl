@@ -313,6 +313,32 @@ class SO100PickPlaceEnv(gym.Env):
             self._place_fired = True
             bonus_place = 5.0
 
+        # Discouragement penalties
+        penalty_drop = 0.0
+        if self._was_lifted and not in_contact and cube_z > LIFT_THRESH_ABS:
+            penalty_drop = -2.0  # fires once per drop event
+            self._was_lifted = False
+        elif in_contact and cube_z > LIFT_THRESH_ABS:
+            self._was_lifted = True
+
+        penalty_push = 0.0
+        if not self._has_grasped:
+            cube_xy_disp = float(np.linalg.norm(cube[:2] - self._initial_cube_xy))
+            if not self._push_penalty_fired and cube_xy_disp > 0.01:
+                penalty_push = -1.0
+                self._push_penalty_fired = True
+
+        penalty_off_table = 0.0
+        if not self._off_table_fired and cube_z < (TABLE_Z - 0.02):
+            penalty_off_table = -5.0
+            self._off_table_fired = True
+
+        action_delta = action - self._prev_action
+        penalty_jerk = -0.01 * float(np.sum(action_delta ** 2))
+
+        if in_contact:
+            self._has_grasped = True
+
         reward = (
             reward_reach
             + reward_grasp
@@ -321,6 +347,10 @@ class SO100PickPlaceEnv(gym.Env):
             + bonus_first_lift
             + bonus_first_target
             + bonus_place
+            + penalty_drop
+            + penalty_push
+            + penalty_off_table
+            + penalty_jerk
         )
         info = {
             "reward_reach": reward_reach,
@@ -330,6 +360,10 @@ class SO100PickPlaceEnv(gym.Env):
             "bonus_first_lift": bonus_first_lift,
             "bonus_first_target": bonus_first_target,
             "bonus_place": bonus_place,
+            "penalty_drop": penalty_drop,
+            "penalty_push": penalty_push,
+            "penalty_off_table": penalty_off_table,
+            "penalty_jerk": penalty_jerk,
             "in_contact": float(in_contact),
             "cube_z": cube_z,
             "cube_target_xy": cube_target_xy,
