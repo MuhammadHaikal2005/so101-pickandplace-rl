@@ -1,5 +1,9 @@
-# Training artefacts (large, environment-specific)
-runs/
+# Training artefacts: keep final models, demos, eval metrics, and logs.
+# Drop intermediate checkpoints, TensorBoard event files, and any actively-running session.
+runs/*/checkpoints/
+runs/*/tb/
+runs/sac_lift_v1/
+runs/sac_lift_v1_train.log
 
 # Cloned external dependency (fetch via `git clone https://github.com/google-deepmind/mujoco_menagerie.git third_party/mujoco_menagerie`)
 third_party/
@@ -22,6 +26,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Media spillover
-*.mp4
-*.webm
+# Note: training-output MP4s under runs/ are intentionally tracked
+# so reviewers can see what each trained policy actually does.
