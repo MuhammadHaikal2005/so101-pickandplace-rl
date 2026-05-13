@@ -26,6 +26,7 @@ ARM_JOINT_NAMES = JOINT_NAMES[:5]   # all except Jaw, used by IK
 HOME_QPOS = np.array([0.0, -1.57, 1.57, 1.57, -1.57, 0.0], dtype=np.float32)
 
 CUBE_START_XYZ = np.array([0.06, -0.18, 0.01], dtype=np.float32)
+CUBE_START_NOISE = 0.005  # ±5 mm spawn noise to break deterministic local optima
 TARGET_XY = np.array([-0.06, -0.18], dtype=np.float32)
 TABLE_Z = 0.01
 
@@ -234,8 +235,16 @@ class SO100PickPlaceEnv(gym.Env):
 
         self.data.qpos[self.qpos_addrs] = HOME_QPOS
         self.data.ctrl[self.act_ids] = HOME_QPOS
-        self.data.qpos[self.cube_qpos_addr : self.cube_qpos_addr + 3] = CUBE_START_XYZ
+
+        cube_xy_noise = self._np_random.uniform(
+            -CUBE_START_NOISE, CUBE_START_NOISE, size=2
+        ).astype(np.float32)
+        cube_start = CUBE_START_XYZ.copy()
+        cube_start[0] += cube_xy_noise[0]
+        cube_start[1] += cube_xy_noise[1]
+        self.data.qpos[self.cube_qpos_addr : self.cube_qpos_addr + 3] = cube_start
         self.data.qpos[self.cube_qpos_addr + 3 : self.cube_qpos_addr + 7] = [1.0, 0.0, 0.0, 0.0]
+        self._initial_cube_xy = cube_start[:2].copy()
 
         mujoco.mj_forward(self.model, self.data)
 
@@ -248,7 +257,6 @@ class SO100PickPlaceEnv(gym.Env):
         self._place_fired = False
         self._push_penalty_fired = False
         self._off_table_fired = False
-        self._initial_cube_xy = CUBE_START_XYZ[:2].copy()
         self._prev_action = np.zeros(4, dtype=np.float32)
 
         return self._observation(), {}
@@ -280,14 +288,14 @@ class SO100PickPlaceEnv(gym.Env):
         cube = self._cube_pos()
         target = self._target_pos()
         ee_cube_dist = float(np.linalg.norm(tcp - cube))
-        reward_reach = 1.0 - float(np.tanh(10.0 * ee_cube_dist))
+        reward_reach = 0.3 * (1.0 - float(np.tanh(10.0 * ee_cube_dist)))
 
         in_contact = self._is_grasped()
-        reward_grasp = 0.25 if in_contact else 0.0
+        reward_grasp = 1.0 if in_contact else 0.0
 
         cube_z = float(cube[2])
         cube_lift = max(0.0, cube_z - TABLE_Z)
-        reward_lift = 2.0 * float(np.tanh(20.0 * cube_lift)) if in_contact else 0.0
+        reward_lift = 4.0 * float(np.tanh(20.0 * cube_lift)) if in_contact else 0.0
 
         cube_target_xy = float(np.linalg.norm(cube[:2] - target[:2]))
         is_lifted = cube_z > TRANSPORT_LIFT_ABS

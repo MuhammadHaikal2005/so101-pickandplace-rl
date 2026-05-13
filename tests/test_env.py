@@ -124,8 +124,9 @@ def test_reach_reward_decreases_with_distance():
         env.data.qpos[env.cube_qpos_addr : env.cube_qpos_addr + 3] = tcp + np.array([0.3, 0.0, 0.0])
         mujoco.mj_forward(env.model, env.data)
         _, r_far, _, _, _ = env.step(np.zeros(4, dtype=np.float32))
-        assert r_close > 0.5, f"reach reward at zero distance too low: {r_close}"
-        assert r_far < 0.2, f"reach reward at 0.3 m too high: {r_far}"
+        # Reach reward is capped at 0.3 (scaled to keep grasp/lift dominant)
+        assert r_close > 0.2, f"reach reward at zero distance too low: {r_close}"
+        assert r_far < 0.05, f"reach reward at 0.3 m too high: {r_far}"
         print(f"  r_close={r_close:.3f}, r_far={r_far:.3f}")
     finally:
         env.close()
