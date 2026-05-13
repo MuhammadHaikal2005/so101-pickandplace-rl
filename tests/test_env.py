@@ -213,6 +213,40 @@ def test_drop_penalty_fires_on_grasp_loss_while_lifted():
         env.close()
 
 
+def test_success_triggers_termination_with_bonus():
+    """Holding the success state for SUCCESS_HOLD_STEPS frames should terminate with +1000."""
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        env.reset(seed=0)
+        # Set cube at target on table, gripper away (so not in contact)
+        target = env._target_pos()
+        env.data.qpos[env.cube_qpos_addr : env.cube_qpos_addr + 3] = np.array(
+            [target[0], target[1], TABLE_Z]
+        )
+        env.data.qpos[env.cube_qpos_addr + 3 : env.cube_qpos_addr + 7] = [1, 0, 0, 0]
+        mujoco.mj_forward(env.model, env.data)
+        terminated_at = None
+        cumulative = 0.0
+        for i in range(10):
+            # Force cube to stay at target by pinning each step (action commanded keeps EE far)
+            env.data.qpos[env.cube_qpos_addr : env.cube_qpos_addr + 3] = np.array(
+                [target[0], target[1], TABLE_Z]
+            )
+            env.data.qpos[env.cube_qpos_addr + 7 : env.cube_qpos_addr + 13] = 0  # zero cube vels
+            mujoco.mj_forward(env.model, env.data)
+            obs, r, term, trunc, info = env.step(np.array([1.0, 0.0, 1.0, 1.0], dtype=np.float32))
+            cumulative += r
+            if term:
+                terminated_at = i
+                break
+        assert terminated_at is not None, "termination never fired"
+        assert cumulative > 900, f"expected success bonus to push cumulative reward over 900, got {cumulative:.1f}"
+        print(f"  terminated at step {terminated_at}, cumulative={cumulative:.1f}")
+    finally:
+        env.close()
+
+
 TESTS = [
     test_tcp_site_exists,
     test_env_imports_and_constructs,
@@ -226,6 +260,7 @@ TESTS = [
     test_lift_reward_requires_grasp,
     test_first_lift_bonus_fires_once,
     test_drop_penalty_fires_on_grasp_loss_while_lifted,
+    test_success_triggers_termination_with_bonus,
 ]
 
 

@@ -339,6 +339,20 @@ class SO100PickPlaceEnv(gym.Env):
         if in_contact:
             self._has_grasped = True
 
+        # Success criterion (must hold for SUCCESS_HOLD_STEPS frames)
+        success_state = (
+            cube_target_xy < PLACE_XY_THRESH
+            and cube_z < (TABLE_Z + PLACE_Z_TOLERANCE)
+            and not in_contact
+        )
+        if success_state:
+            self._success_streak += 1
+        else:
+            self._success_streak = 0
+
+        terminated = self._success_streak >= SUCCESS_HOLD_STEPS
+        reward_success = 1000.0 if terminated else 0.0
+
         reward = (
             reward_reach
             + reward_grasp
@@ -351,6 +365,7 @@ class SO100PickPlaceEnv(gym.Env):
             + penalty_push
             + penalty_off_table
             + penalty_jerk
+            + reward_success
         )
         info = {
             "reward_reach": reward_reach,
@@ -369,10 +384,13 @@ class SO100PickPlaceEnv(gym.Env):
             "cube_target_xy": cube_target_xy,
         }
 
+        info["reward_success"] = reward_success
+        info["success_streak"] = self._success_streak
+        info["is_success"] = float(terminated)
         obs = self._observation()
-        truncated = self._step_count >= self.max_episode_steps
+        truncated = (self._step_count >= self.max_episode_steps) and not terminated
         self._prev_action = action.copy()
-        return obs, float(reward), False, truncated, info
+        return obs, float(reward), terminated, truncated, info
 
     def render(self):
         if self._renderer is None:
