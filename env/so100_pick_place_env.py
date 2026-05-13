@@ -301,6 +301,13 @@ class SO100PickPlaceEnv(gym.Env):
         is_lifted = cube_z > TRANSPORT_LIFT_ABS
         reward_transport = (1.0 - float(np.tanh(10.0 * cube_target_xy))) if (in_contact and is_lifted) else 0.0
 
+        # Descent reward: while grasped and near target, reward lowering the cube
+        # toward the table. Creates a continuous gradient from "hold high" -> "place".
+        reward_descent = 0.0
+        if in_contact and cube_target_xy < 0.05:
+            descent_progress = 1.0 - float(np.tanh(20.0 * cube_lift))
+            reward_descent = 2.0 * descent_progress
+
         # Milestone bonuses (each fires once per episode)
         bonus_first_lift = 0.0
         if not self._first_lift_fired and cube_z > MIN_LIFT_FOR_BONUS_ABS:
@@ -366,6 +373,7 @@ class SO100PickPlaceEnv(gym.Env):
             + reward_grasp
             + reward_lift
             + reward_transport
+            + reward_descent
             + bonus_first_lift
             + bonus_first_target
             + bonus_place
@@ -380,6 +388,7 @@ class SO100PickPlaceEnv(gym.Env):
             "reward_grasp": reward_grasp,
             "reward_lift": reward_lift,
             "reward_transport": reward_transport,
+            "reward_descent": reward_descent,
             "bonus_first_lift": bonus_first_lift,
             "bonus_first_target": bonus_first_target,
             "bonus_place": bonus_place,
