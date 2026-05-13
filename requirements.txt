@@ -1,0 +1,8 @@
+mujoco>=3.2
+gymnasium>=1.0
+stable-baselines3[extra]>=2.7
+numpy
+tensorboard
+tqdm
+imageio
+imageio-ffmpeg
