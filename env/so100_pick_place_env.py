@@ -112,6 +112,7 @@ class SO100PickPlaceEnv(gym.Env):
         self._first_lift_fired = False
         self._first_target_fired = False
         self._place_fired = False
+        self._release_bonus_fired = False
         self._push_penalty_fired = False
         self._off_table_fired = False
         self._initial_cube_xy = CUBE_START_XYZ[:2].copy()
@@ -255,6 +256,7 @@ class SO100PickPlaceEnv(gym.Env):
         self._first_lift_fired = False
         self._first_target_fired = False
         self._place_fired = False
+        self._release_bonus_fired = False
         self._push_penalty_fired = False
         self._off_table_fired = False
         self._prev_action = np.zeros(4, dtype=np.float32)
@@ -328,6 +330,20 @@ class SO100PickPlaceEnv(gym.Env):
             self._place_fired = True
             bonus_place = 5.0
 
+        # Release-at-target bonus: fires once when the policy goes from
+        # grasping -> not grasping while the cube is over the target zone
+        # and still in the air. Rewards the act of releasing.
+        bonus_release_at_target = 0.0
+        if (
+            not self._release_bonus_fired
+            and self._has_grasped
+            and not in_contact
+            and cube_target_xy < 0.05
+            and cube_z > (TABLE_Z + 0.005)
+        ):
+            bonus_release_at_target = 20.0
+            self._release_bonus_fired = True
+
         # Discouragement penalties
         penalty_drop = 0.0
         if self._was_lifted and not in_contact and cube_z > LIFT_THRESH_ABS:
@@ -377,6 +393,7 @@ class SO100PickPlaceEnv(gym.Env):
             + bonus_first_lift
             + bonus_first_target
             + bonus_place
+            + bonus_release_at_target
             + penalty_drop
             + penalty_push
             + penalty_off_table
@@ -392,6 +409,7 @@ class SO100PickPlaceEnv(gym.Env):
             "bonus_first_lift": bonus_first_lift,
             "bonus_first_target": bonus_first_target,
             "bonus_place": bonus_place,
+            "bonus_release_at_target": bonus_release_at_target,
             "penalty_drop": penalty_drop,
             "penalty_push": penalty_push,
             "penalty_off_table": penalty_off_table,
