@@ -8,6 +8,8 @@ sys.path.insert(0, str(ROOT))
 import mujoco
 import numpy as np
 
+TABLE_Z = 0.01  # mirrors env constant for test setup
+
 
 def test_tcp_site_exists():
     # Load the composite scene (not so_arm100.xml directly) so we also exercise the
@@ -171,6 +173,28 @@ def test_lift_reward_requires_grasp():
         env.close()
 
 
+def test_first_lift_bonus_fires_once():
+    """First-lift milestone bonus should fire exactly once when cube clears 4 cm above table."""
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        env.reset(seed=0)
+        # Tick once with cube below threshold
+        _, _, _, _, info0 = env.step(np.zeros(4, dtype=np.float32))
+        assert info0.get("bonus_first_lift", 0.0) == 0.0
+        # Now lift cube past threshold
+        env.data.qpos[env.cube_qpos_addr + 2] = TABLE_Z + 0.05
+        mujoco.mj_forward(env.model, env.data)
+        _, _, _, _, info1 = env.step(np.zeros(4, dtype=np.float32))
+        assert info1.get("bonus_first_lift", 0.0) == 1.0, f"expected 1.0, got {info1.get('bonus_first_lift')}"
+        # Should not fire a second time
+        _, _, _, _, info2 = env.step(np.zeros(4, dtype=np.float32))
+        assert info2.get("bonus_first_lift", -1.0) == 0.0, "first-lift bonus fired twice"
+        print("  first-lift bonus fires exactly once")
+    finally:
+        env.close()
+
+
 TESTS = [
     test_tcp_site_exists,
     test_env_imports_and_constructs,
@@ -182,6 +206,7 @@ TESTS = [
     test_reach_reward_decreases_with_distance,
     test_grasp_reward_fires_when_both_jaws_contact,
     test_lift_reward_requires_grasp,
+    test_first_lift_bonus_fires_once,
 ]
 
 

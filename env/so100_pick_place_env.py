@@ -289,13 +289,50 @@ class SO100PickPlaceEnv(gym.Env):
         cube_lift = max(0.0, cube_z - TABLE_Z)
         reward_lift = 2.0 * float(np.tanh(20.0 * cube_lift)) if in_contact else 0.0
 
-        reward = reward_reach + reward_grasp + reward_lift
+        cube_target_xy = float(np.linalg.norm(cube[:2] - target[:2]))
+        is_lifted = cube_z > TRANSPORT_LIFT_ABS
+        reward_transport = (1.0 - float(np.tanh(10.0 * cube_target_xy))) if (in_contact and is_lifted) else 0.0
+
+        # Milestone bonuses (each fires once per episode)
+        bonus_first_lift = 0.0
+        if not self._first_lift_fired and cube_z > MIN_LIFT_FOR_BONUS_ABS:
+            self._first_lift_fired = True
+            bonus_first_lift = 1.0
+
+        bonus_first_target = 0.0
+        if not self._first_target_fired and is_lifted and cube_target_xy < 0.05:
+            self._first_target_fired = True
+            bonus_first_target = 1.0
+
+        cube_settled = (
+            cube_target_xy < PLACE_XY_THRESH
+            and cube_z < (TABLE_Z + PLACE_Z_TOLERANCE + 0.005)
+        )
+        bonus_place = 0.0
+        if not self._place_fired and cube_settled:
+            self._place_fired = True
+            bonus_place = 5.0
+
+        reward = (
+            reward_reach
+            + reward_grasp
+            + reward_lift
+            + reward_transport
+            + bonus_first_lift
+            + bonus_first_target
+            + bonus_place
+        )
         info = {
             "reward_reach": reward_reach,
             "reward_grasp": reward_grasp,
             "reward_lift": reward_lift,
+            "reward_transport": reward_transport,
+            "bonus_first_lift": bonus_first_lift,
+            "bonus_first_target": bonus_first_target,
+            "bonus_place": bonus_place,
             "in_contact": float(in_contact),
             "cube_z": cube_z,
+            "cube_target_xy": cube_target_xy,
         }
 
         obs = self._observation()
