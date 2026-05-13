@@ -1,31 +1,21 @@
+"""Train SAC on our Cartesian SO-100 pick-and-place env."""
 import argparse
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import gymnasium as gym
-import gym_lowcostrobot  # noqa: F401
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
+from env import SO100PickPlaceEnv
 
-def make_env(env_id: str, seed: int, fixed_start: bool):
+
+def make_env(seed: int):
     def _init():
-        kwargs = dict(
-            observation_mode="state",
-            action_mode="ee",
-            reward_type="dense",
-        )
-        if fixed_start:
-            kwargs["cube_xy_range"] = 0.01
-            if env_id == "PickPlaceCube-v0":
-                kwargs["target_xy_range"] = 0.01
-                kwargs["goal_z_range"] = 0.0
-        env = gym.make(env_id, **kwargs)
-        env = gym.wrappers.FlattenObservation(env)
+        env = SO100PickPlaceEnv()
         env.reset(seed=seed)
         return Monitor(env)
     return _init
@@ -33,13 +23,9 @@ def make_env(env_id: str, seed: int, fixed_start: bool):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default="LiftCube-v0",
-                        choices=["LiftCube-v0", "PickPlaceCube-v0"])
     parser.add_argument("--timesteps", type=int, default=500_000)
-    parser.add_argument("--run-name", type=str, default="sac_lift_v1")
+    parser.add_argument("--run-name", type=str, default="sac_v1")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--fixed-start", action="store_true",
-                        help="Constrain cube/target to near-fixed positions")
     args = parser.parse_args()
 
     run_dir = Path(__file__).resolve().parent.parent / "runs" / args.run_name
@@ -48,8 +34,8 @@ def main() -> None:
     tb_dir = run_dir / "tb"
     eval_dir = run_dir / "eval"
 
-    train_env = DummyVecEnv([make_env(args.env, args.seed, args.fixed_start)])
-    eval_env = DummyVecEnv([make_env(args.env, args.seed + 1000, args.fixed_start)])
+    train_env = DummyVecEnv([make_env(args.seed)])
+    eval_env = DummyVecEnv([make_env(args.seed + 1000)])
 
     model = SAC(
         "MlpPolicy",
