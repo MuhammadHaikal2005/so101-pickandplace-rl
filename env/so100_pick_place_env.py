@@ -282,9 +282,20 @@ class SO100PickPlaceEnv(gym.Env):
         ee_cube_dist = float(np.linalg.norm(tcp - cube))
         reward_reach = 1.0 - float(np.tanh(10.0 * ee_cube_dist))
 
-        reward = reward_reach
+        in_contact = self._is_grasped()
+        reward_grasp = 0.25 if in_contact else 0.0
+
+        cube_z = float(cube[2])
+        cube_lift = max(0.0, cube_z - TABLE_Z)
+        reward_lift = 2.0 * float(np.tanh(20.0 * cube_lift)) if in_contact else 0.0
+
+        reward = reward_reach + reward_grasp + reward_lift
         info = {
             "reward_reach": reward_reach,
+            "reward_grasp": reward_grasp,
+            "reward_lift": reward_lift,
+            "in_contact": float(in_contact),
+            "cube_z": cube_z,
         }
 
         obs = self._observation()
