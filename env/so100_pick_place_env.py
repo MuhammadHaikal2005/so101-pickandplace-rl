@@ -120,6 +120,75 @@ class SO100PickPlaceEnv(gym.Env):
     def _tcp_pos(self) -> np.ndarray:
         return self.data.site_xpos[self.tcp_site_id].copy()
 
+    def _ik_solve(
+        self,
+        target_pos: np.ndarray,
+        max_iter: int = 200,
+        tol: float = 0.005,
+        damping: float = 0.05,
+        step_size: float = 0.8,
+        nullspace_weight: float = 0.01,
+    ) -> np.ndarray:
+        """Damped least-squares IK that returns 6-D joint targets.
+
+        Updates joints 0-4 to reach `target_pos`; joint 5 (Jaw) is left at current value.
+        Leaves `self.data.qpos` at the solved configuration and calls mj_forward so that
+        subsequent sim steps start from the IK solution.
+        """
+        # Clamp the target into the reachable box
+        target = np.clip(target_pos, EE_BOX_LOW, EE_BOX_HIGH).astype(np.float64)
+
+        jacp = np.zeros((3, self.model.nv), dtype=np.float64)
+        ee_id = self.tcp_site_id
+
+        original_qpos = self.data.qpos.copy()
+        q_arm = self.data.qpos[self.arm_qpos_addrs].astype(np.float64).copy()
+        home_arm = HOME_QPOS[:5].astype(np.float64)
+
+        for _ in range(max_iter):
+            # Write current arm guess into the data copy and forward kinematics
+            self.data.qpos[self.arm_qpos_addrs] = q_arm
+            mujoco.mj_forward(self.model, self.data)
+
+            tcp = self.data.site_xpos[ee_id]
+            err = target - tcp
+            err_norm = np.linalg.norm(err)
+            if err_norm < tol:
+                break
+
+            mujoco.mj_jacSite(self.model, self.data, jacp, None, ee_id)
+            J = jacp[:, self.arm_dof_addrs]  # 3 x 5
+
+            # Damped pseudoinverse: J^T (J J^T + lambda^2 I)^-1
+            JJt = J @ J.T + (damping ** 2) * np.eye(3)
+            qdot = J.T @ np.linalg.solve(JJt, err)
+
+            # Nullspace bias toward home pose
+            JtJ_inv_Jt = np.linalg.pinv(J)
+            nullspace = (np.eye(5) - JtJ_inv_Jt @ J) @ (nullspace_weight * (home_arm - q_arm))
+            qdot = qdot + nullspace
+
+            qdot_norm = np.linalg.norm(qdot)
+            if qdot_norm > 1.0:
+                qdot = qdot / qdot_norm
+
+            q_arm = q_arm + step_size * qdot
+
+            # Clip to joint limits
+            low = self.model.jnt_range[[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in ARM_JOINT_NAMES], 0]
+            high = self.model.jnt_range[[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in ARM_JOINT_NAMES], 1]
+            q_arm = np.clip(q_arm, low, high)
+
+        # Apply the final IK solution to qpos so that subsequent sim steps
+        # (as in the test harness) start from the solved configuration.
+        self.data.qpos[self.arm_qpos_addrs] = q_arm
+        mujoco.mj_forward(self.model, self.data)
+
+        result = np.empty(6, dtype=np.float32)
+        result[:5] = q_arm.astype(np.float32)
+        result[5] = self.data.qpos[self.qpos_addrs[5]]  # leave Jaw at current
+        return result
+
     def _cube_pos(self) -> np.ndarray:
         return self.data.qpos[self.cube_qpos_addr : self.cube_qpos_addr + 3].copy()
 

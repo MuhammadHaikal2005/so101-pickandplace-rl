@@ -65,12 +65,34 @@ def test_reset_returns_valid_obs():
         env.close()
 
 
+def test_ik_reaches_waypoint():
+    """IK should drive the TCP within 1 cm of a reachable target after one solve."""
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        env.reset(seed=0)
+        # Target a reachable point ~10 cm forward of the gripper home pose
+        target = env._tcp_pos() + np.array([0.0, -0.05, -0.05], dtype=np.float32)
+        new_qpos = env._ik_solve(target)
+        # Apply and step the sim to settle
+        env.data.ctrl[env.act_ids[:5]] = new_qpos[:5]
+        for _ in range(20):
+            mujoco.mj_step(env.model, env.data)
+        final_ee = env._tcp_pos()
+        err = np.linalg.norm(final_ee - target)
+        assert err < 0.02, f"IK error too large: {err:.4f} m, target={target}, final={final_ee}"
+        print(f"  ik error = {err:.4f} m")
+    finally:
+        env.close()
+
+
 TESTS = [
     test_tcp_site_exists,
     test_env_imports_and_constructs,
     test_action_space_is_4d,
     test_observation_space_is_22d,
     test_reset_returns_valid_obs,
+    test_ik_reaches_waypoint,
 ]
 
 
