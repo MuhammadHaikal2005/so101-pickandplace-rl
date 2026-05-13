@@ -107,6 +107,28 @@ def test_positive_z_action_raises_ee():
         env.close()
 
 
+def test_reach_reward_decreases_with_distance():
+    """Reach reward should be near 1 at zero distance and near 0 at 0.3 m distance."""
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        env.reset(seed=0)
+        # Place cube at TCP (zero distance) - manipulate cube qpos directly
+        tcp = env._tcp_pos()
+        env.data.qpos[env.cube_qpos_addr : env.cube_qpos_addr + 3] = tcp
+        mujoco.mj_forward(env.model, env.data)
+        _, r_close, _, _, _ = env.step(np.zeros(4, dtype=np.float32))
+        # Now move cube 0.3 m away
+        env.data.qpos[env.cube_qpos_addr : env.cube_qpos_addr + 3] = tcp + np.array([0.3, 0.0, 0.0])
+        mujoco.mj_forward(env.model, env.data)
+        _, r_far, _, _, _ = env.step(np.zeros(4, dtype=np.float32))
+        assert r_close > 0.5, f"reach reward at zero distance too low: {r_close}"
+        assert r_far < 0.2, f"reach reward at 0.3 m too high: {r_far}"
+        print(f"  r_close={r_close:.3f}, r_far={r_far:.3f}")
+    finally:
+        env.close()
+
+
 TESTS = [
     test_tcp_site_exists,
     test_env_imports_and_constructs,
@@ -115,6 +137,7 @@ TESTS = [
     test_reset_returns_valid_obs,
     test_ik_reaches_waypoint,
     test_positive_z_action_raises_ee,
+    test_reach_reward_decreases_with_distance,
 ]
 
 

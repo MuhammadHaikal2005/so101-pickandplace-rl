@@ -275,12 +275,22 @@ class SO100PickPlaceEnv(gym.Env):
             mujoco.mj_step(self.model, self.data)
 
         self._step_count += 1
-        obs = self._observation()
 
+        tcp = self._tcp_pos()
+        cube = self._cube_pos()
+        target = self._target_pos()
+        ee_cube_dist = float(np.linalg.norm(tcp - cube))
+        reward_reach = 1.0 - float(np.tanh(10.0 * ee_cube_dist))
+
+        reward = reward_reach
+        info = {
+            "reward_reach": reward_reach,
+        }
+
+        obs = self._observation()
         truncated = self._step_count >= self.max_episode_steps
-        info = {}
         self._prev_action = action.copy()
-        return obs, 0.0, False, truncated, info
+        return obs, float(reward), False, truncated, info
 
     def render(self):
         if self._renderer is None:
