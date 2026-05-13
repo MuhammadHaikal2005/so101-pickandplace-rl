@@ -4,11 +4,21 @@ Throwaway proof of concept: train a PPO policy to pick up a 3 cm cube from a fix
 
 ## Setup
 
+Bootstrap the SO-100 mesh assets (these are not committed; sourced from MuJoCo Menagerie):
+
+```bash
+git clone --depth 1 https://github.com/google-deepmind/mujoco_menagerie.git third_party/mujoco_menagerie
+mkdir -p scene/assets
+cp third_party/mujoco_menagerie/trs_so_arm100/assets/* scene/assets/
+```
+
+Then activate the Python env:
+
 ```bash
 conda activate so101-rl
 ```
 
-Packages already installed: `mujoco`, `gymnasium`, `stable-baselines3[extra]`, `numpy`, `tensorboard`, `tqdm`, `imageio`, `imageio-ffmpeg`.
+Packages: `mujoco`, `gymnasium`, `stable-baselines3[extra]`, `numpy`, `tensorboard`, `tqdm`, `imageio`, `imageio-ffmpeg`. To install fresh: `pip install -r requirements.txt`.
 
 ## Sanity check
 
