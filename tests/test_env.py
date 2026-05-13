@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import mujoco
+import numpy as np
 
 
 def test_tcp_site_exists():
@@ -20,7 +21,57 @@ def test_tcp_site_exists():
     print("  tcp site correctly attached to Fixed_Jaw body")
 
 
-TESTS = [test_tcp_site_exists]
+def test_env_imports_and_constructs():
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    assert env is not None
+    env.close()
+    print("  env constructed and closed")
+
+
+def test_action_space_is_4d():
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        assert env.action_space.shape == (4,), f"got {env.action_space.shape}"
+        low = env.action_space.low
+        high = env.action_space.high
+        assert np.all(low == -1.0) and np.all(high == 1.0)
+        print(f"  action_space={env.action_space}")
+    finally:
+        env.close()
+
+
+def test_observation_space_is_22d():
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        assert env.observation_space.shape == (22,), f"got {env.observation_space.shape}"
+        print(f"  observation_space={env.observation_space}")
+    finally:
+        env.close()
+
+
+def test_reset_returns_valid_obs():
+    from env import SO100PickPlaceEnv
+    env = SO100PickPlaceEnv()
+    try:
+        obs, info = env.reset(seed=0)
+        assert obs.shape == (22,), f"got {obs.shape}"
+        assert obs.dtype == np.float32
+        assert isinstance(info, dict)
+        print(f"  obs[:6]={obs[:6]}")
+    finally:
+        env.close()
+
+
+TESTS = [
+    test_tcp_site_exists,
+    test_env_imports_and_constructs,
+    test_action_space_is_4d,
+    test_observation_space_is_22d,
+    test_reset_returns_valid_obs,
+]
 
 
 def main():
