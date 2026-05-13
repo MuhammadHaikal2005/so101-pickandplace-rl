@@ -5,11 +5,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import numpy as np
 import mujoco
 
 
 def test_tcp_site_exists():
+    # Load the composite scene (not so_arm100.xml directly) so we also exercise the
+    # <include> chain that the env uses at runtime.
     model = mujoco.MjModel.from_xml_path(str(ROOT / "scene" / "pick_place_scene.xml"))
     sid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "tcp")
     assert sid >= 0, "tcp site not found in scene"
